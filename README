@@ -1,3 +1,6 @@
+Hive access library by Rajko Stojadinovic (https://github.com/rajkosto)
+Bliss schema compatibility by Andrew DeLisa (https://github.com/ayan4m1)
+
 Compiling:
 
 You must have a copy of Visual Studio 2010 with SP1 installed.
@@ -40,19 +43,3 @@ the x_tables.sql files will create the tables, while the obj_sample_data.sql has
 If you are already running some similar db layout, MAKE SURE to read the ENTIRETY of HiveExt.ini (especially the one about the Objects table name, and the PlayerID column)
 to be certain that the parameters inside match what you are currently running as the database.
 
-Final:
-
-This project was started as a better alternative to the "official" Hive access library for DayZ,
-however, since my request for making it the official Hive access dll was denied (at the time),
-and that the most popular usage of it was running "private" or "local" servers for the game, 
-I have removed all the restrictions and certificate systems that were in place, so that it can connect to any server you want.
-
-Recently, after the founding of the DayZMod community that currently maintains DayZMod, this project DID become the official Hive access library.
-Just compiling the source code isn't enough to connect to the public hive database though, for that, use the libraries distributed with the official server files themselves
-Or, download a "blessed" version from http://hive.rajko.info/ (blessed version is identical to the open source one, except that it can connect to the public hive by default)
-You can (and it's preferred) to use the precompiled "blessed" version for connecting to your private hive as well, to save you from having to compile it yourself.
-
-Hive access library by Rajko Stojadinovic (https://github.com/rajkosto)
-If you would be so kind, and are satisfied with what this thing does, maybe send a donation my way to payment@rajko.info
-
-Good luck with your DayZ hosting !
