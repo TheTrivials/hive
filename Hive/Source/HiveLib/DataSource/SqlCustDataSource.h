@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2009-2012 Rajko Stojadinovic <http://github.com/rajkosto/hive>
+* Copyright (C) 2009-2012 Andrew DeLisa <http://github.com/ayan4m1/hive>
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -18,19 +18,15 @@
 
 #pragma once
 
-#include "DataSource.h"
+#include "SqlDataSource.h"
+#include "CustDataSource.h"
 
-class CharDataSource
+class SqlCustDataSource : public SqlDataSource, public CustDataSource
 {
 public:
-	virtual ~CharDataSource() {}
+	SqlCustDataSource(Poco::Logger& logger, shared_ptr<Database> db);
+	~SqlCustDataSource();
 
-	virtual Sqf::Value fetchCharacterInitial( string playerId, int serverId, const string& playerName ) = 0;
-	virtual Sqf::Value fetchCharacterDetails( int characterId ) = 0;
-	typedef map<string,Sqf::Value> FieldsType;
-	virtual bool updateCharacter( int characterId, const FieldsType& fields ) = 0;
-	virtual bool killCharacter( int characterId, int duration ) = 0;
-	virtual bool recordLogEntry( string playerId, int characterId, int serverId, int action ) = 0;
-protected:
-	static int SanitiseInv(Sqf::Parameters& origInv);
+	void populateQuery( string query, Sqf::Parameters& params, CustomDataQueue& queue ) override;
+	bool customExecute( string query, Sqf::Parameters& params ) override;
 };

@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2009-2012 Rajko Stojadinovic <http://github.com/rajkosto/hive>
+* Copyright (C) 2009-2012 Andrew DeLisa <http://github.com/ayan4m1/hive>
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,21 +16,20 @@
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
-#pragma once
+#include "CustDataSource.h"
 
-#include "DataSource.h"
+#include <boost/algorithm/string/predicate.hpp>
 
-class CharDataSource
+/*string CustDataSource::BuildSQL( string query, int argCount )
 {
-public:
-	virtual ~CharDataSource() {}
-
-	virtual Sqf::Value fetchCharacterInitial( string playerId, int serverId, const string& playerName ) = 0;
-	virtual Sqf::Value fetchCharacterDetails( int characterId ) = 0;
-	typedef map<string,Sqf::Value> FieldsType;
-	virtual bool updateCharacter( int characterId, const FieldsType& fields ) = 0;
-	virtual bool killCharacter( int characterId, int duration ) = 0;
-	virtual bool recordLogEntry( string playerId, int characterId, int serverId, int action ) = 0;
-protected:
-	static int SanitiseInv(Sqf::Parameters& origInv);
-};
+	string ret = "call `"+procName+"`(";	
+	for( int i=0;i<argCount;i++ )
+	{
+		if (i != 0 && ((i + 1) != argCount)) {
+			ret += ", ";
+		}
+		ret += "?";
+	}
+	ret += ")";
+	return ret;
+}*/

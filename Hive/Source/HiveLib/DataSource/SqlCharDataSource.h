@@ -31,9 +31,8 @@ public:
 	Sqf::Value fetchCharacterInitial( string playerId, int serverId, const string& playerName ) override;
 	Sqf::Value fetchCharacterDetails( int characterId ) override;
 	bool updateCharacter( int characterId, const FieldsType& fields ) override;
-	bool initCharacter( int characterId, const Sqf::Value& inventory, const Sqf::Value& backpack ) override;
 	bool killCharacter( int characterId, int duration ) override;
-	bool recordLogin( string playerId, int characterId, int action ) override;
+	bool recordLogEntry( string playerId, int characterId, int serverId, int action ) override;
 
 private:
 	string _idFieldName;
@@ -45,6 +44,7 @@ private:
 	SqlStatementID _stmtUpdateCharacterLastLogin;
 	SqlStatementID _stmtInsertNewCharacter;
 	SqlStatementID _stmtInitCharacter;
+	SqlStatementID _stmtKillStatCharacter;
 	SqlStatementID _stmtKillCharacter;
 	SqlStatementID _stmtRecordLogin;
 };

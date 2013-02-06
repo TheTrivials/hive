@@ -133,7 +133,6 @@ HiveExtApp::HiveExtApp(string suffixDir) : AppServer("HiveExt",suffixDir), _serv
 	handlers[308] = boost::bind(&HiveExtApp::objectPublish,this,_1);
 	handlers[309] = boost::bind(&HiveExtApp::objectInventory,this,_1,true);
 	handlers[310] = boost::bind(&HiveExtApp::objectDelete,this,_1,true);
-	handlers[399] = boost::bind(&HiveExtApp::serverShutdown,this,_1);		//Shut down the hiveExt instance
 	//player/character loads
 	handlers[101] = boost::bind(&HiveExtApp::loadPlayer,this,_1);
 	handlers[102] = boost::bind(&HiveExtApp::loadCharacterDetails,this,_1);
@@ -141,7 +140,6 @@ HiveExtApp::HiveExtApp(string suffixDir) : AppServer("HiveExt",suffixDir), _serv
 	//character updates
 	handlers[201] = boost::bind(&HiveExtApp::playerUpdate,this,_1);
 	handlers[202] = boost::bind(&HiveExtApp::playerDeath,this,_1);
-	handlers[203] = boost::bind(&HiveExtApp::playerInit,this,_1);
 }
 
 #include <boost/lexical_cast.hpp>
@@ -376,16 +374,13 @@ Sqf::Value HiveExtApp::vehicleDamaged( Sqf::Parameters params )
 
 Sqf::Value HiveExtApp::objectPublish( Sqf::Parameters params )
 {
+	int serverId = boost::get<int>(params.at(0));
 	string className = boost::get<string>(params.at(1));
-	double damage = Sqf::GetDouble(params.at(2));
-	int characterId = Sqf::GetIntAny(params.at(3));
-	Sqf::Value worldSpace = boost::get<Sqf::Parameters>(params.at(4));
-	Sqf::Value inventory = boost::get<Sqf::Parameters>(params.at(5));
-	Sqf::Value hitPoints = boost::get<Sqf::Parameters>(params.at(6));
-	double fuel = Sqf::GetDouble(params.at(7));
-	Int64 uniqueId = Sqf::GetBigInt(params.at(8));
+	int characterId = Sqf::GetIntAny(params.at(2));
+	Sqf::Value worldSpace = boost::get<Sqf::Parameters>(params.at(3));
+	Int64 uniqueId = Sqf::GetBigInt(params.at(4));
 
-	return ReturnBooleanStatus(_objData->createObject(getServerId(),className,damage,characterId,worldSpace,inventory,hitPoints,fuel,uniqueId));
+	return ReturnBooleanStatus(_objData->createObject(serverId,className,characterId,worldSpace,uniqueId));
 }
 
 #include "DataSource/CharDataSource.h"
@@ -410,8 +405,7 @@ Sqf::Value HiveExtApp::recordCharacterLogin( Sqf::Parameters params )
 	string playerId = Sqf::GetStringAny(params.at(0));
 	int characterId = Sqf::GetIntAny(params.at(1));
 	int action = Sqf::GetIntAny(params.at(2));
-
-	return ReturnBooleanStatus(_charData->recordLogin(playerId,characterId,action));
+	return ReturnBooleanStatus(_charData->recordLogEntry(playerId,characterId,getServerId(),action));
 }
 
 Sqf::Value HiveExtApp::playerUpdate( Sqf::Parameters params )
@@ -427,7 +421,7 @@ Sqf::Value HiveExtApp::playerUpdate( Sqf::Parameters params )
 			if (worldSpaceArr.size() > 0)
 			{
 				Sqf::Value worldSpace = worldSpaceArr;
-				fields["Worldspace"] = worldSpace;
+				fields["worldspace"] = worldSpace;
 			}
 		}
 		if (!Sqf::IsNull(params.at(2)))
@@ -436,7 +430,7 @@ Sqf::Value HiveExtApp::playerUpdate( Sqf::Parameters params )
 			if (inventoryArr.size() > 0)
 			{
 				Sqf::Value inventory = inventoryArr;
-				fields["Inventory"] = inventory;
+				fields["inventory"] = inventory;
 			}
 		}
 		if (!Sqf::IsNull(params.at(3)))
@@ -445,7 +439,7 @@ Sqf::Value HiveExtApp::playerUpdate( Sqf::Parameters params )
 			if (backpackArr.size() > 0)
 			{
 				Sqf::Value backpack = backpackArr;
-				fields["Backpack"] = backpack;
+				fields["backpack"] = backpack;
 			}
 		}
 		if (!Sqf::IsNull(params.at(4)))
@@ -462,38 +456,33 @@ Sqf::Value HiveExtApp::playerUpdate( Sqf::Parameters params )
 					}
 				}
 				Sqf::Value medical = medicalArr;
-				fields["Medical"] = medical;
+				fields["medical"] = medical;
 			}
 		}
 		if (!Sqf::IsNull(params.at(5)))
 		{
 			bool justAte = boost::get<bool>(params.at(5));
-			if (justAte) fields["JustAte"] = true;
+			if (justAte) fields["just_ate"] = true;
 		}
 		if (!Sqf::IsNull(params.at(6)))
 		{
 			bool justDrank = boost::get<bool>(params.at(6));
-			if (justDrank) fields["JustDrank"] = true;
+			if (justDrank) fields["just_drank"] = true;
 		}
 		if (!Sqf::IsNull(params.at(7)))
 		{
 			int moreKillsZ = boost::get<int>(params.at(7));
-			if (moreKillsZ > 0) fields["KillsZ"] = moreKillsZ;
+			if (moreKillsZ > 0) fields["zombie_kills"] = moreKillsZ;
 		}
 		if (!Sqf::IsNull(params.at(8)))
 		{
 			int moreKillsH = boost::get<int>(params.at(8));
-			if (moreKillsH > 0) fields["HeadshotsZ"] = moreKillsH;
-		}
-		if (!Sqf::IsNull(params.at(9)))
-		{
-			int distanceWalked = static_cast<int>(Sqf::GetDouble(params.at(9)));
-			if (distanceWalked > 0) fields["DistanceFoot"] = distanceWalked;
+			if (moreKillsH > 0) fields["headshots"] = moreKillsH;
 		}
 		if (!Sqf::IsNull(params.at(10)))
 		{
 			int durationLived = static_cast<int>(Sqf::GetDouble(params.at(10)));
-			if (durationLived > 0) fields["Duration"] = durationLived;
+			if (durationLived > 0) fields["survival_time"] = durationLived;
 		}
 		if (!Sqf::IsNull(params.at(11)))
 		{
@@ -501,28 +490,28 @@ Sqf::Value HiveExtApp::playerUpdate( Sqf::Parameters params )
 			if (currentStateArr.size() > 0)
 			{
 				Sqf::Value currentState = currentStateArr;
-				fields["CurrentState"] = currentState;
+				fields["state"] = currentState;
 			}
 		}
 		if (!Sqf::IsNull(params.at(12)))
 		{
 			int moreKillsHuman = boost::get<int>(params.at(12));
-			if (moreKillsHuman > 0) fields["KillsH"] = moreKillsHuman;
+			if (moreKillsHuman > 0) fields["survivor_kills"] = moreKillsHuman;
 		}
 		if (!Sqf::IsNull(params.at(13)))
 		{
 			int moreKillsBandit = boost::get<int>(params.at(13));
-			if (moreKillsBandit > 0) fields["KillsB"] = moreKillsBandit;
+			if (moreKillsBandit > 0) fields["bandit_kills"] = moreKillsBandit;
 		}
 		if (!Sqf::IsNull(params.at(14)))
 		{
 			string newModel = boost::get<string>(params.at(14));
-			fields["Model"] = newModel;
+			fields["model"] = newModel;
 		}
 		if (!Sqf::IsNull(params.at(15)))
 		{
 			int humanityDiff = static_cast<int>(Sqf::GetDouble(params.at(15)));
-			if (humanityDiff != 0) fields["Humanity"] = humanityDiff;
+			if (humanityDiff != 0) fields["humanity"] = humanityDiff;
 		}
 	}
 	catch (const std::out_of_range&)
@@ -534,15 +523,6 @@ Sqf::Value HiveExtApp::playerUpdate( Sqf::Parameters params )
 		return ReturnBooleanStatus(_charData->updateCharacter(characterId,fields));
 
 	return ReturnBooleanStatus(true);
-}
-
-Sqf::Value HiveExtApp::playerInit( Sqf::Parameters params )
-{
-	int characterId = Sqf::GetIntAny(params.at(0));
-	Sqf::Value inventory = boost::get<Sqf::Parameters>(params.at(1));
-	Sqf::Value backpack = boost::get<Sqf::Parameters>(params.at(2));
-
-	return ReturnBooleanStatus(_charData->initCharacter(characterId,inventory,backpack));
 }
 
 Sqf::Value HiveExtApp::playerDeath( Sqf::Parameters params )
@@ -1067,20 +1047,4 @@ Sqf::Value HiveExtApp::changeTableAccess( Sqf::Parameters params )
 	retVal.push_back(failedRem);
 
 	return ReturnStatus("PASS",retVal);
-}
-
-//CHILD:399:SUPERKEY:
-//if the SUPERKEY matches, HiveExt instance will shut down
-//and ["PASS"] will be returned
-//otherwise, ["ERROR"] will be returned
-Sqf::Value HiveExtApp::serverShutdown( Sqf::Parameters params )
-{
-	string theirKey = boost::get<string>(params.at(0));
-	if ((_initKey.length() > 0) && (theirKey == _initKey))
-	{
-		logger().information("Shutting down HiveExt instance");
-		throw ServerShutdownException(theirKey,ReturnBooleanStatus(true));
-	}
-
-	return ReturnBooleanStatus(false);
 }
