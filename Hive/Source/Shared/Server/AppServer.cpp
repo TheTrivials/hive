@@ -133,7 +133,7 @@ void AppServer::initLogger()
 	}
 	Logger::root().setChannel(splitChan);
 
-	std::string loggingLevel = Poco::toLower(logConf->getString("Level","information"));
+	std::string loggingLevel = Poco::toLower(logConf->getString("Level","warning"));
 	Logger::root().setLevel(loggingLevel);
 
 	this->setLogger(Logger::get(appName));

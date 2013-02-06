@@ -36,14 +36,14 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 	bool newPlayer = false;
 	//make sure player exists in db
 	{
-		auto playerRes(getDB()->queryParams(("SELECT `PlayerName`, `PlayerSex` FROM `Player_DATA` WHERE `"+_idFieldName+"`='%s'").c_str(), getDB()->escape(playerId).c_str()));
+		auto playerRes(getDB()->queryParams("select `name` from `profile` WHERE `unique_id` = '%s'", getDB()->escape(playerId).c_str()));
 		if (playerRes && playerRes->fetchRow())
 		{
 			newPlayer = false;
 			//update player name if not current
 			if (playerRes->at(0).getString() != playerName)
 			{
-				auto stmt = getDB()->makeStatement(_stmtChangePlayerName, "UPDATE `Player_DATA` SET `PlayerName`=? WHERE `"+_idFieldName+"`=?");
+				auto stmt = getDB()->makeStatement(_stmtChangePlayerName, "update `profile` set `name` = ? where `unique_id` = ?");
 				stmt->addString(playerName);
 				stmt->addString(playerId);
 				bool exRes = stmt->execute();
@@ -55,7 +55,7 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 		{
 			newPlayer = true;
 			//insert new player into db
-			auto stmt = getDB()->makeStatement(_stmtInsertPlayer, "INSERT INTO `Player_DATA` (`"+_idFieldName+"`, `PlayerName`) VALUES (?, ?)");
+			auto stmt = getDB()->makeStatement(_stmtInsertPlayer, "insert into profile (`unique_id`, `name`) values (?, ?)");
 			stmt->addString(playerId);
 			stmt->addString(playerName);
 			bool exRes = stmt->execute();
@@ -66,11 +66,11 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 
 	//get characters from db
 	auto charsRes = getDB()->queryParams(
-		("SELECT `CharacterID`, `"+_wsFieldName+"`, `Inventory`, `Backpack`, "
-		"TIMESTAMPDIFF(MINUTE,`Datestamp`,`LastLogin`) as `SurvivalTime`, "
-		"TIMESTAMPDIFF(MINUTE,`LastAte`,NOW()) as `MinsLastAte`, "
-		"TIMESTAMPDIFF(MINUTE,`LastDrank`,NOW()) as `MinsLastDrank`, "
-		"`Model` FROM `Character_DATA` WHERE `"+_idFieldName+"` = '%s' AND `Alive` = 1 ORDER BY `CharacterID` DESC LIMIT 1").c_str(), getDB()->escape(playerId).c_str());
+		"select s.`id`, s.`worldspace`, s.`inventory`, s.`backpack`, "
+		"timestampdiff(minute, s.`start_time`, s.`last_updated`) as `SurvivalTime`, "
+		"timestampdiff(minute, s.`last_ate`, NOW()) as `MinsLastAte`, "
+		"timestampdiff(minute, s.`last_drank`, NOW()) as `MinsLastDrank`, "
+		"s.`model` from `survivor` s join `instance` i on s.`world_id` = i.`world_id` and i.`id` = %d where s.`unique_id` = '%s' and s.`is_dead` = 0", serverId, getDB()->escape(playerId).c_str());
 
 	bool newChar = false; //not a new char
 	int characterId = -1; //invalid charid
@@ -133,7 +133,7 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 		//update last login
 		{
 			//update last character login
-			auto stmt = getDB()->makeStatement(_stmtUpdateCharacterLastLogin, "UPDATE `Character_DATA` SET `LastLogin` = CURRENT_TIMESTAMP WHERE `CharacterID` = ?");
+			auto stmt = getDB()->makeStatement(_stmtUpdateCharacterLastLogin, "update `survivor` set `last_updated` = CURRENT_TIMESTAMP where `id` = ?");
 			stmt->addInt32(characterId);
 			bool exRes = stmt->execute();
 			poco_assert(exRes == true);
@@ -143,42 +143,24 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 	{
 		newChar = true;
 
-		int generation = 1;
-		int humanity = 2500;
-		//try getting previous character info
+		//try getting custom inventory info
 		{
-			auto prevCharRes = getDB()->queryParams(
-				("SELECT `Generation`, `Humanity`, `Model` FROM `Character_DATA` WHERE `"+_idFieldName+"` = '%s' AND `Alive` = 0 ORDER BY `CharacterID` DESC LIMIT 1").c_str(), getDB()->escape(playerId).c_str());
-			if (prevCharRes && prevCharRes->fetchRow())
+			auto invRes = getDB()->queryParams("select `inventory`, `backpack` from `instance` where `id` = %d", serverId);
+			if (invRes && invRes->fetchRow())
 			{
-				generation = prevCharRes->at(0).getInt32();
-				generation++; //apparently this was the correct behaviour all along
-
-				humanity = prevCharRes->at(1).getInt32();
-				try
-				{
-					model = boost::get<string>(lexical_cast<Sqf::Value>(prevCharRes->at(2).getString()));
-				}
-				catch(...)
-				{
-					model = prevCharRes->at(2).getString();
-				}
+				inventory = lexical_cast<Sqf::Value>(invRes->at(0).getString());
+				backpack = lexical_cast<Sqf::Value>(invRes->at(1).getString());
 			}
 		}
-		Sqf::Value medical = Sqf::Parameters(); //script will fill this in if empty
 		//insert new char into db
 		{
-			auto stmt = getDB()->makeStatement(_stmtInsertNewCharacter, 
-				"INSERT INTO `Character_DATA` (`"+_idFieldName+"`, `InstanceID`, `"+_wsFieldName+"`, `Inventory`, `Backpack`, `Medical`, `Generation`, `Datestamp`, `LastLogin`, `LastAte`, `LastDrank`, `Humanity`) "
-				"VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?)");
+			auto stmt = getDB()->makeStatement(_stmtInsertNewCharacter,
+				"insert into `survivor` (`unique_id`, `start_time`, `world_id`, `worldspace`, `inventory`, `backpack`, `medical`) "
+				"select ?, now(), i.`world_id`, ?, i.`inventory`, i.`backpack`, ? from `instance` i where i.`id` = ?");
 			stmt->addString(playerId);
-			stmt->addInt32(serverId);
 			stmt->addString(lexical_cast<string>(worldSpace));
-			stmt->addString(lexical_cast<string>(inventory));
-			stmt->addString(lexical_cast<string>(backpack));
-			stmt->addString(lexical_cast<string>(medical));
-			stmt->addInt32(generation);
-			stmt->addInt32(humanity);
+			stmt->addString("[false,false,false,false,false,false,false,12000,[],[0,0],0]");
+			stmt->addInt32(serverId);
 			bool exRes = stmt->directExecute(); //need sync as we will be getting the CharacterID right after this
 			if (exRes == false)
 			{
@@ -191,7 +173,7 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 		//get the new character's id
 		{
 			auto newCharRes = getDB()->queryParams(
-				("SELECT `CharacterID` FROM `Character_DATA` WHERE `"+_idFieldName+"` = '%s' AND `Alive` = 1 ORDER BY `CharacterID` DESC LIMIT 1").c_str(), getDB()->escape(playerId).c_str());
+				"select s.`id` from `survivor` s join `instance` i on s.world_id = i.world_id and i.id = %d where s.`unique_id` = '%s' and s.`is_dead` = 0", serverId, getDB()->escape(playerId).c_str());
 			if (!newCharRes || !newCharRes->fetchRow())
 			{
 				_logger.error("Error fetching created character for playerId " + playerId);
@@ -204,17 +186,15 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 		_logger.information("Created a new character " + lexical_cast<string>(characterId) + " for player '" + playerName + "' (" + playerId + ")" );
 	}
 
+	//always push back full login details
 	Sqf::Parameters retVal;
 	retVal.push_back(string("PASS"));
 	retVal.push_back(newPlayer);
 	retVal.push_back(lexical_cast<string>(characterId));
-	if (!newChar)
-	{
-		retVal.push_back(worldSpace);
-		retVal.push_back(inventory);
-		retVal.push_back(backpack);
-		retVal.push_back(survival);
-	}
+	retVal.push_back(worldSpace);
+	retVal.push_back(inventory);
+	retVal.push_back(backpack);
+	retVal.push_back(survival);
 	retVal.push_back(model);
 	//hive interface version
 	retVal.push_back(0.96f);
@@ -227,14 +207,13 @@ Sqf::Value SqlCharDataSource::fetchCharacterDetails( int characterId )
 	Sqf::Parameters retVal;
 	//get details from db
 	auto charDetRes = getDB()->queryParams(
-		"SELECT `%s`, `Medical`, `Generation`, `KillsZ`, `HeadshotsZ`, `KillsH`, `KillsB`, `CurrentState`, `Humanity` "
-		"FROM `Character_DATA` WHERE `CharacterID`=%d", _wsFieldName.c_str(), characterId);
+		"select s.`worldspace`, s.`medical`, s.`zombie_kills`, s.`headshots`, s.`survivor_kills`, s.`bandit_kills`, s.`state`, p.`humanity` "
+		"from `survivor` s join `profile` p on s.`unique_id` = p.`unique_id` where s.`id` = %d", characterId);
 
 	if (charDetRes && charDetRes->fetchRow())
 	{
 		Sqf::Value worldSpace = Sqf::Parameters(); //empty worldspace
 		Sqf::Value medical = Sqf::Parameters(); //script will fill this in if empty
-		int generation = 1;
 		Sqf::Value stats = lexical_cast<Sqf::Value>("[0,0,0,0]"); //killsZ, headZ, killsH, killsB
 		Sqf::Value currentState = Sqf::Parameters(); //empty state (aiming, etc)
 		int humanity = 2500;
@@ -256,24 +235,23 @@ Sqf::Value SqlCharDataSource::fetchCharacterDetails( int characterId )
 			{
 				_logger.warning("Invalid Medical (detail load) for CharacterID("+lexical_cast<string>(characterId)+"): "+charDetRes->at(1).getString());
 			}
-			generation = charDetRes->at(2).getInt32();
 			//set stats
 			{
 				Sqf::Parameters& statsArr = boost::get<Sqf::Parameters>(stats);
-				statsArr[0] = charDetRes->at(3).getInt32();
-				statsArr[1] = charDetRes->at(4).getInt32();
-				statsArr[2] = charDetRes->at(5).getInt32();
-				statsArr[3] = charDetRes->at(6).getInt32();
+				statsArr[0] = charDetRes->at(2).getInt32();
+				statsArr[1] = charDetRes->at(3).getInt32();
+				statsArr[2] = charDetRes->at(4).getInt32();
+				statsArr[3] = charDetRes->at(5).getInt32();
 			}
 			try
 			{
-				currentState = lexical_cast<Sqf::Value>(charDetRes->at(7).getString());
+				currentState = lexical_cast<Sqf::Value>(charDetRes->at(6).getString());
 			}
 			catch(bad_lexical_cast)
 			{
-				_logger.warning("Invalid CurrentState (detail load) for CharacterID("+lexical_cast<string>(characterId)+"): "+charDetRes->at(7).getString());
+				_logger.warning("Invalid CurrentState (detail load) for CharacterID("+lexical_cast<string>(characterId)+"): "+charDetRes->at(6).getString());
 			}
-			humanity = charDetRes->at(8).getInt32();
+			humanity = charDetRes->at(7).getInt32();
 		}
 
 		retVal.push_back(string("PASS"));
@@ -301,23 +279,23 @@ bool SqlCharDataSource::updateCharacter( int characterId, const FieldsType& fiel
 		const Sqf::Value& val = it->second;
 
 		//arrays
-		if (name == "Worldspace" || name == "Inventory" || name == "Backpack" || name == "Medical" || name == "CurrentState")
+		if (name == "worldspace" || name == "inventory" || name == "backpack" || name == "medical" || name == "state")
 			sqlFields[name] = "'"+getDB()->escape(lexical_cast<string>(val))+"'";
 		//booleans
-		else if (name == "JustAte" || name == "JustDrank")
+		else if (name == "just_ate" || name == "just_drank")
 		{
 			if (boost::get<bool>(val))
 			{
-				string newName = "LastAte";
-				if (name == "JustDrank")
-					newName = "LastDrank";
+				string newName = "last_ate";
+				if (name == "just_drank")
+					newName = "last_drank";
 
 				sqlFields[newName] = "CURRENT_TIMESTAMP";
 			}
 		}
 		//addition integeroids
-		else if (name == "KillsZ" || name == "HeadshotsZ" || name == "DistanceFoot" || name == "Duration" ||
-			name == "KillsH" || name == "KillsB" || name == "Humanity")
+		else if (name == "zombie_kills" || name == "headshots" || name == "survival_time" ||
+			name == "survivor_kills" || name == "bandit_kills" || name == "humanity")
 		{
 			int integeroid = static_cast<int>(Sqf::GetDouble(val));
 			char intSign = '+';
@@ -327,29 +305,44 @@ bool SqlCharDataSource::updateCharacter( int characterId, const FieldsType& fiel
 				integeroid = abs(integeroid);
 			}
 
-			if (integeroid > 0) 
-				sqlFields[name] = "(`"+name+"` "+intSign+" "+lexical_cast<string>(integeroid)+")";
+			if (integeroid != 0 && name != "humanity")
+				sqlFields[name] = "(s.`"+name+"` "+intSign+" "+lexical_cast<string>(integeroid)+")";
+			//humanity references another table
+			else if (integeroid != 0)
+				sqlFields[name] = "(p.`"+name+"` "+intSign+" "+lexical_cast<string>(integeroid)+")";
 		}
 		//strings
-		else if (name == "Model")
+		else if (name == "model")
+		{
 			sqlFields[name] = "'"+getDB()->escape(boost::get<string>(val))+"'";
+		}
 	}
 
 	if (sqlFields.size() > 0)
 	{
-		string query = "UPDATE `Character_DATA` SET ";
+		string setClause = "";
+		bool joinProfile = false;
 		for (auto it=sqlFields.begin();it!=sqlFields.end();)
 		{
 			string fieldName = it->first;
-			if (fieldName == "Worldspace")
+			if (fieldName == "worldspace")
 				fieldName = _wsFieldName;
 
-			query += "`" + fieldName + "` = " + it->second;
+			if (fieldName == "humanity") {
+				joinProfile = true;
+				setClause += "p.`" + fieldName + "` = " + it->second;
+			} else {
+				setClause += "s.`" + fieldName + "` = " + it->second;
+			}
 			++it;
 			if (it != sqlFields.end())
-				query += " , ";
+				setClause += " , ";
 		}
-		query += " WHERE `CharacterID` = " + lexical_cast<string>(characterId);
+
+		string query = "update `survivor` s ";
+		if (joinProfile)
+			query += "join `profile` p on s.`unique_id` = p.`unique_id` ";
+		query += "set " + setClause + " where s.`id` = " + lexical_cast<string>(characterId);
 		bool exRes = getDB()->execute(query.c_str());
 		poco_assert(exRes == true);
 
@@ -359,37 +352,36 @@ bool SqlCharDataSource::updateCharacter( int characterId, const FieldsType& fiel
 	return true;
 }
 
-bool SqlCharDataSource::initCharacter( int characterId, const Sqf::Value& inventory, const Sqf::Value& backpack )
-{
-	auto stmt = getDB()->makeStatement(_stmtInitCharacter, "UPDATE `Character_DATA` SET `Inventory` = ? , `Backpack` = ? WHERE `CharacterID` = ?");
-	stmt->addString(lexical_cast<string>(inventory));
-	stmt->addString(lexical_cast<string>(backpack));
-	stmt->addInt32(characterId);
-	bool exRes = stmt->execute();
-	poco_assert(exRes == true);
-
-	return exRes;
-}
-
 bool SqlCharDataSource::killCharacter( int characterId, int duration )
 {
-	auto stmt = getDB()->makeStatement(_stmtKillCharacter, 
-		"UPDATE `Character_DATA` SET `Alive` = 0, `LastLogin` = DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? MINUTE) WHERE `CharacterID` = ? AND `Alive` = 1");
-	stmt->addInt32(duration);
+	auto stmt = getDB()->makeStatement(_stmtKillStatCharacter, 
+		"update `profile` p inner join `survivor` s on s.`unique_id` = p.`unique_id` set p.`survival_attempts` = p.`survival_attempts` + 1, p.`total_survivor_kills` = p.`total_survivor_kills` + s.`survivor_kills`, p.`total_bandit_kills` = p.`total_bandit_kills` + s.`bandit_kills`, p.`total_zombie_kills` = p.`total_zombie_kills` + s.`zombie_kills`, p.`total_headshots` = p.`total_headshots` + s.`headshots`, p.`total_survival_time` = p.`total_survival_time` + s.`survival_time` where s.`id` = ?");
 	stmt->addInt32(characterId);
 	bool exRes = stmt->execute();
+	poco_assert(exRes == true);
+
+	stmt = getDB()->makeStatement(_stmtKillCharacter, "update `survivor` set `is_dead` = 1 where `id` = ?");
+	stmt->addInt32(characterId);
+	exRes = stmt->execute();
 	poco_assert(exRes == true);
 
 	return exRes;
 }
 
-bool SqlCharDataSource::recordLogin( string playerId, int characterId, int action )
-{	
+bool SqlCharDataSource::recordLogEntry( string playerId, int characterId, int serverId, int action )
+{
 	auto stmt = getDB()->makeStatement(_stmtRecordLogin, 
-		"INSERT INTO `Player_LOGIN` (`"+_idFieldName+"`, `CharacterID`, `Datestamp`, `Action`) VALUES (?, ?, CURRENT_TIMESTAMP, ?)");
+		"insert into `log_entry` (`unique_id`, `log_code_id`, `instance_id`) select ?, lc.id, ? from log_code lc where lc.name = ?");
 	stmt->addString(playerId);
-	stmt->addInt32(characterId);
-	stmt->addInt32(action);
+	stmt->addInt32(serverId);
+	switch (action) {
+	case 0:
+		stmt->addString("Login");
+		break;
+	case 2:
+		stmt->addString("Disconnect");
+		break;
+	}
 	bool exRes = stmt->execute();
 	poco_assert(exRes == true);
 
