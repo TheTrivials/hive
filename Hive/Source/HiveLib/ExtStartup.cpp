@@ -137,12 +137,5 @@ void CALLBACK RVExtension(char *output, int outputSize, const char* function)
 			ExitProcess(1);
 	}
 
-	try
-	{
-		gApp->callExtension(function, output, outputSize);
-	}
-	catch(const HiveExtApp::ServerShutdownException&)
-	{
-		ExtStartup::ProcessShutdown();
-	}
+	gApp->callExtension(function, output, outputSize);
 }

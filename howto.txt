@@ -1,0 +1,26 @@
+POCO
+====
+
+create build.cmd and add this
+
+[code]
+call buildwin.cmd 100 build all both Win32 nosamples msbuild
+pause
+[/code]
+
+edit buildwin.cmd and add this after setlocal
+
+[code]
+if defined VS100COMNTOOLS (
+call "%VS100COMNTOOLS%\vsvars32.bat")
+[/code]
+
+
+boost
+=====
+if you have multiple visual studios installed (vs2010/2012) then run b2 toolset=msvc-10.0 to build it in vs 2010
+
+b2 batch file 
+b2 --clean debug release
+b2 toolset=msvc-10.0 threading=multi debug stage
+pause

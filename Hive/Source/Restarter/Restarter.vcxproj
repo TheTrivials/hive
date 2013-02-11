@@ -17,6 +17,10 @@
     <ProjectGuid>{11AFA4C2-C32F-467D-A7C5-D4B629068E2B}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Restarter</RootNamespace>
+    <SccProjectName>SAK</SccProjectName>
+    <SccAuxPath>SAK</SccAuxPath>
+    <SccLocalPath>SAK</SccLocalPath>
+    <SccProvider>SAK</SccProvider>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -46,9 +50,13 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
+    <IncludePath>C:\Program Files (x86)\boost\boost_1_51;$(IncludePath)</IncludePath>
+    <LibraryPath>C:\Program Files (x86)\boost\boost_1_51\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
+    <IncludePath>D:\projects\DayZ-Reality\boost_1_51_0;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\projects\DayZ-Reality\boost_1_51_0\stage\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

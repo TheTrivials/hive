@@ -6,18 +6,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="DirectHiveApp.h" />
-    <ClInclude Include="resource.h">
-      <Filter>Resource</Filter>
-    </ClInclude>
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <Filter Include="Resource">
-      <UniqueIdentifier>{5effb2b5-ada7-4b17-a444-3ad3c6cdccd2}</UniqueIdentifier>
-    </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="Resource.rc">
-      <Filter>Resource</Filter>
-    </ResourceCompile>
+    <ResourceCompile Include="Resource.rc" />
   </ItemGroup>
 </Project>

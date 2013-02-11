@@ -30,7 +30,6 @@ public:
 protected:
 	~HiveConsoleChannel();
 private:
-	bool _consoleCreated;
 	HANDLE _hConsole;
 };
 

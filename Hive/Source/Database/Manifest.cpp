@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2009-2013 Rajko Stojadinovic <http://github.com/rajkosto/hive>
+* Copyright (C) 2009-2012 Rajko Stojadinovic <http://github.com/rajkosto/hive>
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -16,23 +16,13 @@
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 */
 
-#pragma once
+#include <Poco/ClassLibrary.h>
+#include "Database.h"
 
-#include "../QueryResultImpl.h"
-#include "DatabasePostgre.h"
+#include "Implementation/DatabaseMysql.h"
 
-class QueryResultPostgre : public QueryResultImpl
-{
-public:
-	QueryResultPostgre(PostgreSQLConnection* theConn, const char* sql);
-	~QueryResultPostgre();
-
-	bool fetchRow() override;
-	QueryFieldNames fetchFieldNames() const override;
-
-	bool nextResult() override;
-private:
-	vector<PostgreSQLConnection::ResultInfo> _results;
-	int _currRes;
-	size_t _tblIdx;
-};
+POCO_BEGIN_MANIFEST(Database)
+#ifdef MYSQL_ENABLED
+	POCO_EXPORT_CLASS(DatabaseMysql)
+#endif
+POCO_END_MANIFEST

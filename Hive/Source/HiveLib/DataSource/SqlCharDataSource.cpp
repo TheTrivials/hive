@@ -36,7 +36,7 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 	bool newPlayer = false;
 	//make sure player exists in db
 	{
-		auto playerRes(getDB()->queryParams("select `name` from `profile` WHERE `unique_id` = '%s'", getDB()->escape(playerId).c_str()));
+		auto playerRes(getDB()->queryParams("SELECT `name` from `profile` WHERE `unique_id` = '%s'", getDB()->escape(playerId).c_str()));
 		if (playerRes && playerRes->fetchRow())
 		{
 			newPlayer = false;
@@ -158,9 +158,10 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 				"insert into `survivor` (`unique_id`, `start_time`, `world_id`, `worldspace`, `inventory`, `backpack`, `medical`) "
 				"select ?, now(), i.`world_id`, ?, i.`inventory`, i.`backpack`, ? from `instance` i where i.`id` = ?");
 			stmt->addString(playerId);
+			stmt->addInt32(serverId);
 			stmt->addString(lexical_cast<string>(worldSpace));
 			stmt->addString("[false,false,false,false,false,false,false,12000,[],[0,0],0]");
-			stmt->addInt32(serverId);
+			
 			bool exRes = stmt->directExecute(); //need sync as we will be getting the CharacterID right after this
 			if (exRes == false)
 			{
@@ -191,10 +192,13 @@ Sqf::Value SqlCharDataSource::fetchCharacterInitial( string playerId, int server
 	retVal.push_back(string("PASS"));
 	retVal.push_back(newPlayer);
 	retVal.push_back(lexical_cast<string>(characterId));
+	if (!newChar)
+	{
 	retVal.push_back(worldSpace);
 	retVal.push_back(inventory);
 	retVal.push_back(backpack);
 	retVal.push_back(survival);
+	}
 	retVal.push_back(model);
 	//hive interface version
 	retVal.push_back(0.96f);
@@ -294,7 +298,7 @@ bool SqlCharDataSource::updateCharacter( int characterId, const FieldsType& fiel
 			}
 		}
 		//addition integeroids
-		else if (name == "zombie_kills" || name == "headshots" || name == "survival_time" ||
+		else if (name == "zombie_kills" || name == "headshots" || name == "DistanceFoot" || name == "survival_time" ||
 			name == "survivor_kills" || name == "bandit_kills" || name == "humanity")
 		{
 			int integeroid = static_cast<int>(Sqf::GetDouble(val));
@@ -350,6 +354,17 @@ bool SqlCharDataSource::updateCharacter( int characterId, const FieldsType& fiel
 	}
 
 	return true;
+}
+
+bool SqlCharDataSource::initCharacter( int characterId, const Sqf::Value& inventory, const Sqf::Value& backpack )
+{
+	auto stmt = getDB()->makeStatement(_stmtInitCharacter, "UPDATE `survivor` SET `inventory` = ? , `backpack` = ? WHERE `unique_id` = ?");
+	stmt->addString(lexical_cast<string>(inventory));
+	stmt->addString(lexical_cast<string>(backpack));
+	stmt->addInt32(characterId);
+	bool exRes = stmt->execute();
+	poco_assert(exRes == true);
+	return exRes;
 }
 
 bool SqlCharDataSource::killCharacter( int characterId, int duration )

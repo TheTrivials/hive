@@ -5,8 +5,7 @@ Contents:
 	  - HiveExt.dll		HiveExt ArmA2 native extension
 	cfgdayz
 	  - HiveExt.ini		Sample ini file with explanations
-	DatabaseMySql.dll	Required module for proper HiveExt operation
-	DatabasePostgre.dll	Optional module for proper HiveExt operation
+	Database.dll		Required module for proper HiveExt operation
 	tbb.dll			Required module for proper HiveExt operation
 	tbbmalloc.dll		Required module for proper HiveExt operation
 
@@ -24,5 +23,4 @@ It is highly advised to have this folder OUTSIDE of the Arma2OA root, otherwise 
 (the same recommendation should be followed for the folders that house your server.cfg and BEServer.cfg files)
 
 HiveExt.ini file changelog
-	0.9.6.13 - Changed [Time] section, when running a private server, you can now specify a static date as well as hour
 	0.9.6.10 - Added [Logger] section with explanations and defaults, added explanation for Hostname = . named-pipe option in [Database]

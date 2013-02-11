@@ -23,38 +23,27 @@ DirectHiveApp::DirectHiveApp(string suffixDir) : HiveExtApp(suffixDir) {}
 #include "Shared/Library/Database/DatabaseLoader.h"
 #include "HiveLib/DataSource/SqlCharDataSource.h"
 #include "HiveLib/DataSource/SqlObjDataSource.h"
+#include "HiveLib/DataSource/SqlCustDataSource.h"
 
 bool DirectHiveApp::initialiseService()
 {
-	//Load up databases
+	_charDb = DatabaseLoader::create(DatabaseLoader::DBTYPE_MYSQL);
+	Poco::Logger& dbLogger = Poco::Logger::get("Database");
+
+	string initString;
 	{
 		Poco::AutoPtr<Poco::Util::AbstractConfiguration> globalDBConf(config().createView("Database"));
-		Poco::AutoPtr<Poco::Util::AbstractConfiguration> objDBConf(config().createView("ObjectDB"));
-
-		try
-		{
-			Poco::Logger& dbLogger = Poco::Logger::get("Database");
-			_charDb = DatabaseLoader::Create(globalDBConf);
-			if (!_charDb->initialise(dbLogger,DatabaseLoader::MakeConnParams(globalDBConf)))
-				return false;
-
-			_objDb = _charDb;
-			if (objDBConf->getBool("Use",false))
-			{
-				Poco::Logger& objDBLogger = Poco::Logger::get("ObjectDB");
-				_objDb = DatabaseLoader::Create(objDBConf);
-				if (!_objDb->initialise(objDBLogger,DatabaseLoader::MakeConnParams(objDBConf)))
-					return false;
-			}
-		}
-		catch (const DatabaseLoader::CreationError& e) 
-		{
-			logger().critical(e.displayText());
-			return false;
-		}
+		initString = DatabaseLoader::makeInitString(globalDBConf);
 	}
 
-	//Create character datasource
+	if (!_charDb->initialise(dbLogger,initString))
+		return false;
+
+	_charDb->allowAsyncOperations();
+	_objDb = _charDb;
+	_custDb = _charDb;
+	
+	//pass the db along to character datasource
 	{
 		static const string defaultID = "PlayerUID";
 		static const string defaultWS = "Worldspace";
@@ -63,18 +52,48 @@ bool DirectHiveApp::initialiseService()
 		_charData.reset(new SqlCharDataSource(logger(),_charDb,charDBConf->getString("IDField",defaultID),charDBConf->getString("WSField",defaultWS)));	
 	}
 
-	//Create object datasource
+	Poco::AutoPtr<Poco::Util::AbstractConfiguration> objDBConf(config().createView("ObjectDB"));
+	bool useExternalObjDb = objDBConf->getBool("Use",false);
+	if (useExternalObjDb)
 	{
-		Poco::AutoPtr<Poco::Util::AbstractConfiguration> objConf(config().createView("Objects"));
-		_objData.reset(new SqlObjDataSource(logger(),_objDb,objConf.get()));
+		try 
+		{ 
+			_objDb = DatabaseLoader::create(objDBConf); 
+		} 
+		catch (const DatabaseLoader::CreationError&) 
+		{ 
+			return false; 
+		}
+		
+		Poco::Logger& objDBLogger = Poco::Logger::get("ObjectDB");
+
+		if (!_objDb->initialise(objDBLogger,DatabaseLoader::makeInitString(objDBConf)))
+			return false;
+
+		_objDb->allowAsyncOperations();
 	}
 
-	//Create custom datasource
-	_customData.reset(new CustomDataSource(logger(),_charDb,_objDb));
+	Poco::AutoPtr<Poco::Util::AbstractConfiguration> custDBConf(config().createView("CustomDB"));
+	bool useExternalCustDb = custDBConf->getBool("Use",false);
+	if (useExternalCustDb)
+	{
+		try { _custDb = DatabaseLoader::create(custDBConf); } 
+		catch (const DatabaseLoader::CreationError&) { return false; }
+		
+		Poco::Logger& custDBLogger = Poco::Logger::get("CustomDB");
+		custDBLogger.setLevel("trace");
 
-	_charDb->allowAsyncOperations();	
-	if (_objDb != _charDb)
-		_objDb->allowAsyncOperations();
+		if (!_custDb->initialise(custDBLogger,DatabaseLoader::makeInitString(custDBConf)))
+			return false;
+
+		_custDb->allowAsyncOperations();
+	}
+	
+	Poco::AutoPtr<Poco::Util::AbstractConfiguration> objConf(config().createView("Objects"));
+	//Poco::AutoPtr<Poco::Util::AbstractConfiguration> custConf(config().createView("Custom"));
+	_objData.reset(new SqlObjDataSource(dbLogger,_objDb,objConf.get()));
+	//_custData.reset(new SqlCustDataSource(_logger,_custDb,custConf.get()));
+	_custData.reset(new SqlCustDataSource(dbLogger,_custDb));
 	
 	return true;
 }
